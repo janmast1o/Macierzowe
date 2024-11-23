@@ -1,7 +1,7 @@
 using LinearAlgebra
-using LinearAlgebra.LAPACK
-using Adapt
-using TSVD
+# using LinearAlgebra.LAPACK
+# using Adapt
+# using TSVD
 
 error_eps = 1e-8
 
@@ -29,7 +29,7 @@ end
 
 
 function pad(A, target_rows, target_cols)
-    rows, cols = A.size()
+    rows, cols = size(A)
     return [A zeros(rows, target_cols-cols) ; zeros(target_rows-rows, target_cols)]
 end;
 
@@ -74,8 +74,19 @@ function compress_matrix(A, r_min, r_max, c_min, c_max, U, D, V_tr, gamma)
 end;
 
 
+function trunc_svd(A; gamma=min(size(A,1), size(A,2)))
+    gamma = min(gamma, min(size(A,1), size(A,2)))
+    U, D, V = svd(A)
+    D = diagm(D)
+    U = U[: , 1:gamma]
+    D = D[1:gamma , 1:gamma]
+    V = V[: , 1:gamma]
+    return U, D, V'
+end
+
+
 function create_tree(A, r_min, r_max, c_min, c_max, gamma, eps)
-    println(size(A), " ", gamma, " ", eps)
+    # println(r_max-r_min+1, " ", c_max-c_min+1,  " ", gamma, " ", eps)
     # println("")
     if r_min == r_max && c_min == c_max
         v = create_empty_compr_tree_node()
@@ -88,17 +99,26 @@ function create_tree(A, r_min, r_max, c_min, c_max, gamma, eps)
         return v
     end   
     
-    U, D, V = tsvd(A[r_min:r_max , c_min:c_max], gamma+1, debug=true, tolreorth=eps)
+    U, D, V_tr = trunc_svd(A[r_min:r_max , c_min:c_max], gamma=gamma+1)
+    # println("!")
     # println(U, " ", D, " ", V)
     # println(size(U), " ",  size(D), " ", size(V))
-    if D[gamma+1] - eps < error_eps
-        v = compress_matrix(A, r_min, r_max, c_min, c_max, U, diagm(D), V', gamma)
+    # println("!")
+    if gamma+1 > size(D,1)
+        gamma = size(D,1)
+        if D[gamma, gamma] - eps < error_eps
+            v = compress_matrix(A, r_min, r_max, c_min, c_max, U, D, V_tr, gamma)
+            return v 
+        end
+    elseif D[gamma+1, gamma+1] - eps < error_eps
+        v = compress_matrix(A, r_min, r_max, c_min, c_max, U, D, V_tr, gamma)
         # println(size(A))
         # println(v)
         # println("")
         return v
     end 
-    
+    # println("!!")
+
     r_mid = div(r_min+r_max,2)
     c_mid = div(c_min+c_max,2)
     right_upper_child, left_lower_child, right_lower_child = nothing, nothing, nothing
@@ -144,15 +164,15 @@ function build_matrix_based_on_tree(node)
 
     r_mid = div(r_max+r_min,2)
     c_mid = div(c_max+c_min,2)
-    A[r_min:r_mid , c_min:c_mid] += build_matrix_based_on_tree(A.left_upper_child)
-    if !isnothing(A.right_upper_child)
-        A[r:min:r_mid , c_mid+1:c_max] += build_matrix_based_on_tree(A.right_upper_child)
+    A[r_min:r_mid , c_min:c_mid] += build_matrix_based_on_tree(node.left_upper_child)
+    if !isnothing(node.right_upper_child)
+        A[r:min:r_mid , c_mid+1:c_max] += build_matrix_based_on_tree(node.right_upper_child)
     end
-    if !isnothing(A.left_lower_child)
-        A[r:mid+1:r_max , c_min:c_mid] += build_matrix_based_on_tree(A.left_lower_child)
+    if !isnothing(node.left_lower_child)
+        A[r:mid+1:r_max , c_min:c_mid] += build_matrix_based_on_tree(node.left_lower_child)
     end
-    if !isnothing(A.right_lower_child)
-        A[r:mid+1:r_max , c_mid+1:c_max] += build_matrix_based_on_tree(A.right_lower_child)
+    if !isnothing(node.right_lower_child)
+        A[r:mid+1:r_max , c_mid+1:c_max] += build_matrix_based_on_tree(node.right_lower_child)
     end
 
     return A

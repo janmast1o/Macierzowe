@@ -13,15 +13,17 @@ function truncate(U, D, V, eps)
             gamma = i-1
         end
     end
-    V_tr = V'
+    # V_tr = V'
+    V_trunc = V[:, 1:gamma]
     new_U = U[:, 1:gamma]
     new_D = diagm(D)[1:gamma , 1:gamma]
-    new_V_tr = V_tr[1:gamma, :]
+    # new_V_tr = V_tr[1:gamma, :]
+    new_V_tr = V_trunc'
     return new_U, new_D, new_V_tr
 end
 
 function main()
-    A = generate_random_matrix(1000, 400, 0, 1)
+    A = generate_random_matrix(1000, 400, 0, 255)
     U, D, V = svd(A)
     println(size(U), size(D), size(V))
     # println(D)
