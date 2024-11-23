@@ -1,7 +1,7 @@
 using LinearAlgebra
 # using LinearAlgebra.LAPACK
 # using Adapt
-# using TSVD
+using TSVD
 
 error_eps = 1e-8
 
@@ -29,8 +29,11 @@ end
 
 
 function pad(A, target_rows, target_cols)
+    println(size(A))
     rows, cols = size(A)
-    return [A zeros(rows, target_cols-cols) ; zeros(target_rows-rows, target_cols)]
+    result = [A zeros(rows, target_cols-cols) ; zeros(target_rows-rows, target_cols)]
+    println(size(result))
+    return result
 end;
 
 
@@ -56,7 +59,7 @@ end;
 
 
 function compress_matrix(A, r_min, r_max, c_min, c_max, U, D, V_tr, gamma)
-    if all(abs.(A[r_min:r_max , col_min:col_max]) .< error_eps)
+    if all(abs.(A[r_min:r_max , c_min:c_max]) .< error_eps)
         v = create_empty_compr_tree_node()
         v.rank = 0
         v.addr = (r_min, r_max, c_min, c_max)
@@ -69,6 +72,8 @@ function compress_matrix(A, r_min, r_max, c_min, c_max, U, D, V_tr, gamma)
         v.singular_values = sigmas[1:gamma]
         v.U_matrix = U[: , 1:gamma]
         v.V_matrix = D[1:gamma , 1:gamma] * V_tr[1:gamma , :]
+        println("U: ",  v.U_matrix)
+        println("V: ", v.V_matrix)
         return v
     end
 end;
@@ -82,6 +87,9 @@ function trunc_svd(A; gamma=min(size(A,1), size(A,2)))
     D = D[1:gamma , 1:gamma]
     V = V[: , 1:gamma]
     return U, D, V'
+    # gamma = min(gamma, min(size(A,1), size(A,2)))
+    # U, D, V = tsvd(A, gamma)
+    # return U, diagm(D), V'
 end
 
 
@@ -92,7 +100,8 @@ function create_tree(A, r_min, r_max, c_min, c_max, gamma, eps)
         v = create_empty_compr_tree_node()
         v.rank = 1
         v.addr = (r_min, r_max, c_min, c_max)
-        v.U_matrix = A[r_min, c_min]
+        v.U_matrix = reshape([A[r_min, c_min]], 1, 1)
+        # println("U:",  v.U_matrix, " ", v.addr)
         # println(size(A))
         # println(v)
         # println("")
@@ -138,7 +147,7 @@ function create_tree(A, r_min, r_max, c_min, c_max, gamma, eps)
     v.left_upper_child = left_upper_child
     v.right_upper_child = right_upper_child
     v.left_lower_child = left_lower_child
-    v.right_lower_child = right_upper_child
+    v.right_lower_child = right_lower_child
     # println(size(A))
     # println(v)
     # println("")
@@ -148,35 +157,69 @@ function create_tree(A, r_min, r_max, c_min, c_max, gamma, eps)
 end;
 
 
-function build_matrix_based_on_tree(node)
-    r_min, r_max, c_min, c_max = node.addr
-    A = zeros(r_max-r_min+1, c_max-c_min+1)
+# function build_matrix_based_on_tree(node)
+#     r_min, r_max, c_min, c_max = node.addr
+#     A = zeros(r_max-r_min+1, c_max-c_min+1)
+#     println(node.U_matrix, node.V_matrix)
     
-    if !isnothing(node.rank) && node.rank == 0
-        return A  
-    elseif !isnothing(node.U_matrix)
+#     if !isnothing(node.rank) && node.rank == 0
+#         return A  
+#     elseif !isnothing(node.U_matrix)
+#         if !isnothing(node.V_matrix)
+#             return pad(node.U_matrix*node.V_matrix, r_max-r_min+1, c_max-c_min+1)
+#         else 
+#             return pad(node.U_matrix, r_max-r_min+1, c_max-c_min+1)   
+#         end
+#     end 
+
+#     r_mid = div(r_max+r_min,2)
+#     c_mid = div(c_max+c_min,2)
+#     A[r_min:r_mid , c_min:c_mid] += build_matrix_based_on_tree(node.left_upper_child)
+#     if !isnothing(node.right_upper_child)
+#         A[r:min:r_mid , c_mid+1:c_max] += build_matrix_based_on_tree(node.right_upper_child)
+#     end
+#     if !isnothing(node.left_lower_child)
+#         A[r:mid+1:r_max , c_min:c_mid] += build_matrix_based_on_tree(node.left_lower_child)
+#     end
+#     if !isnothing(node.right_lower_child)
+#         A[r:mid+1:r_max , c_mid+1:c_max] += build_matrix_based_on_tree(node.right_lower_child)
+#     end
+
+#     return A
+# end;
+
+
+function build_matrix_based_on_tree(target_matrix, node)
+    r_min, r_max, c_min, c_max = node.addr
+    # println(node.addr)
+    
+    if !isnothing(node.U_matrix)
+        # println(r_min, " ", r_max, " ", c_min, " ", c_max)
         if !isnothing(node.V_matrix)
-            return pad(node.U_matrix*node.V_matrix, r_max-r_min+1, c_max-c_min+1)
-        else 
-            return pad(node.U_matrix, r_max-r_min+1, c_max-c_min+1)   
+            # println(node.U_matrix * node.V_matrix)
+            target_matrix[r_min:r_max , c_min:c_max] += node.U_matrix*node.V_matrix
+        else
+            target_matrix[r_min:r_max , c_min:c_max] += node.U_matrix;
         end
-    end 
+    end
 
-    r_mid = div(r_max+r_min,2)
-    c_mid = div(c_max+c_min,2)
-    A[r_min:r_mid , c_min:c_mid] += build_matrix_based_on_tree(node.left_upper_child)
+    if !isnothing(node.left_upper_child)
+        build_matrix_based_on_tree(target_matrix, node.left_upper_child)
+    end
+
     if !isnothing(node.right_upper_child)
-        A[r:min:r_mid , c_mid+1:c_max] += build_matrix_based_on_tree(node.right_upper_child)
+        build_matrix_based_on_tree(target_matrix, node.right_upper_child)
     end
+    
     if !isnothing(node.left_lower_child)
-        A[r:mid+1:r_max , c_min:c_mid] += build_matrix_based_on_tree(node.left_lower_child)
+        build_matrix_based_on_tree(target_matrix, node.left_lower_child)
     end
+    
     if !isnothing(node.right_lower_child)
-        A[r:mid+1:r_max , c_mid+1:c_max] += build_matrix_based_on_tree(node.right_lower_child)
+        build_matrix_based_on_tree(target_matrix, node.right_lower_child)
     end
-
-    return A
-end;
+    
+end
 
 
 function test_matrix_compression(low_m, high_m, low_n, high_n, a, b, tests, gamma, eps)
@@ -185,7 +228,8 @@ function test_matrix_compression(low_m, high_m, low_n, high_n, a, b, tests, gamm
     for _ in 1:1:tests 
         A = generate_random_matrix(rand(low_m:1:high_m), rand(low_n:1:high_n), a, b)
         tree_root = create_tree(A, 1, size(A,1), 1, size(A,2), gamma, eps)
-        built_A = build_matrix_based_on_tree(tree_root)
+        built_A = zeros(size(A,1), size(A,2))
+        build_matrix_based_on_tree(built_A, tree_root)
         if are_equal(A, built_A)
             correct_outputs += 1
         else 
@@ -199,5 +243,5 @@ end;
 
 low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test = 1, 10, 1, 10
 a_for_test, b_for_test = 0, 50
-correct, incorrect = test_matrix_compression(low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test, a_for_test, b_for_test, 15, 1, 0.1)
-println(correct, incorrect);
+correct, incorrect = test_matrix_compression(low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test, a_for_test, b_for_test, 10, 1, 8)
+println(correct, " ", incorrect);
