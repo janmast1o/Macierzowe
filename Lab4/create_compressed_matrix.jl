@@ -94,7 +94,7 @@ end
 
 function build_matrix_based_on_tree(target_matrix, node)
     r_min, r_max, c_min, c_max = node.addr
-    
+
     if !isnothing(node.U_matrix)
         if !isnothing(node.V_tr_matrix)
             target_matrix[r_min:r_max , c_min:c_max] += node.U_matrix*node.V_tr_matrix
@@ -130,49 +130,62 @@ end
 
 
 function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMatrixNode, Nothing})::Union{CompressedMatrixNode, Nothing}
-    if isnothing(cmn1) || isnothing(cmn2)
-        return nothing     
+    if isnothing(cmn1) && isnothing(cmn2)
+        return nothing   
+    elseif isnothing(cmn1) 
+        return deepcopy(cmn2)
+    elseif isnothing(cmn2)
+        return deepcopy(cmn1)          
     elseif !all(size(cmn1) .== size(cmn2))
-        # println(size(cmn1), " ", size(cmn2))
         throw(ArgumentError("Cannot add matrix nodes of different sizes")) 
     elseif !all(cmn1.addr .== cmn2.addr)
         throw(ArgumentError("Incompatible matrix nodes in terms of addr"))
     end
 
     add_cmn::Union{CompressedMatrixNode, Nothing} = nothing
-    
+    character = "NA"
+
     if cmn1.addr[1] == cmn1.addr[2] && cmn1.addr[3] == cmn1.addr[4]
+        character = "A"
         add_cmn = create_new_compressed_matrix_node()
-        # if isnothing(cmn1.U_matrix) || isnothing(cmn2.U_matrix)
-        #     println(cmn1)
-        #     println("")
-        #     println(cmn2)
+        if !isnothing(cmn1.V_tr_matrix)
+            if !isnothing(cmn2.V_tr_matrix)
+                add_cmn.U_matrix = cmn1.U_matrix * cmn1.V_tr_matrix + cmn2.U_matrix * cmn2.V_tr_matrix
+            else 
+                add_cmn.U_matrix = cmn1.U_matrix * cmn1.V_tr_matrix + cmn2.U_matrix
+            end
+        elseif !isnothing(cmn2.V_tr_matrix)
+            add_cmn.U_matrix = cmn1.U_matrix + cmn2.U_matrix * cmn2.V_tr_matrix
+        else
+            add_cmn.U_matrix = cmn1.U_matrix + cmn2.U_matrix
+        end
+        # if !isnothing(cmn1.V_tr_matrix) || !isnothing(cmn2.V_tr_matrix)
+        #     println(cmn1.U_matrix, " ", cmn1.V_tr_matrix)
+        #     println(cmn2.U_matrix, " ", cmn2.V_tr_matrix)
+        #     println("!")
         # end
-        add_cmn.U_matrix = cmn1.U_matrix + cmn2.U_matrix
         add_cmn.rank = cmn1.rank
         add_cmn.addr = cmn1.addr
     
     elseif cmn1.rank == 0 && cmn2.rank == 0
+        character = "B"
         add_cmn = create_new_compressed_matrix_node()
         add_cmn.rank = 0
         add_cmn.addr = cmn1.addr
 
     elseif cmn1.rank == 0
+        character = "C"
         add_cmn = deepcopy(cmn2)
        
     elseif cmn2.rank == 0
+        character = "D"
         add_cmn = deepcopy(cmn1)    
     
     elseif is_compressed(cmn1) && is_compressed(cmn2) 
+        character = "E"
         u_wave = [cmn1.U_matrix cmn2.U_matrix]
         v_wave = [cmn1.V_tr_matrix ; cmn2.V_tr_matrix]
-        # if cmn1.rank != cmn2.rank
-        #     # println(cmn1.rank, " ", cmn2.rank)
-        # end
-        # gamma = cmn1.rank 
-        # if !isnothing(cmn1.rank) && !isnothing(cmn2.rank)
         gamma = max(cmn1.rank, cmn2.rank)
-        # end
         u_dash, d_dash, v_tr_dash = trunc_svd(u_wave*v_wave, gamma=gamma)
         sigmas = diag(d_dash)
         add_cmn = create_new_compressed_matrix_node()
@@ -183,6 +196,7 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         add_cmn.V_tr_matrix = d_dash*v_tr_dash
     
     elseif !is_compressed(cmn1) && !is_compressed(cmn2)
+        character = "F"
         add_cmn = create_new_compressed_matrix_node()
         add_cmn.rank = cmn1.rank
         add_cmn.addr = cmn1.addr
@@ -192,6 +206,7 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         add_cmn.right_lower_child = cmn1.right_lower_child + cmn2.right_lower_child
 
     elseif is_compressed(cmn1) && !is_compressed(cmn2)
+        character = "G"
         cmn1_left_upper, cmn1_left_lower, cmn1_right_upper, cmn1_right_lower = break_up_compressed_cmn(cmn1)
         add_cmn = create_new_compressed_matrix_node()
         add_cmn.rank = cmn1.rank 
@@ -202,16 +217,20 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         add_cmn.right_lower_child = cmn1_right_lower + cmn2.right_lower_child
 
     elseif !is_compressed(cmn1) && is_compressed(cmn2)
+        character = "H"
         cmn2_left_upper, cmn2_left_lower, cmn2_right_upper, cmn2_right_lower = break_up_compressed_cmn(cmn2)
         add_cmn = create_new_compressed_matrix_node()
         add_cmn.rank = cmn2.rank 
         add_cmn.addr = cmn2.addr 
-        add_cmn.left_upper_child = cmn2_left_upper + cmn1.left_upper_child
-        add_cmn.left_lower_child = cmn2_left_lower + cmn1.left_lower_child
-        add_cmn.right_upper_child = cmn2_right_upper + cmn1.right_upper_child
-        add_cmn.right_lower_child = cmn2_right_lower + cmn1.right_lower_child
+        add_cmn.left_upper_child = cmn1.left_upper_child + cmn2_left_upper
+        add_cmn.left_lower_child = cmn1.left_lower_child + cmn2_left_lower
+        add_cmn.right_upper_child = cmn1.right_upper_child + cmn2_right_upper
+        add_cmn.right_lower_child = cmn1.right_lower_child + cmn2_right_lower
     end
 
+    if all(size(add_cmn) .== (1,1)) && !isnothing(add_cmn.V_tr_matrix)
+        println(character)
+    end
     return add_cmn
 
 end
@@ -222,10 +241,8 @@ function remove_unneccessary_children(cmn::Union{CompressedMatrixNode, Nothing})
         return nothing
     end
 
-    # global i
     new_cmn = cmn 
     while all(size(new_cmn) .== (1,1)) && isnothing(new_cmn.U_matrix) && !isnothing(new_cmn.left_upper_child)
-        # println(i)
         new_cmn = cmn.left_upper_child
     end
 
@@ -243,23 +260,17 @@ function *(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
     mult_cmn::Union{CompressedMatrixNode, Nothing} = nothing
     
     if all(size(cmn1) .== (1,1)) && all(size(cmn2) .== (1,1))
-        # println("A")
         mult_cmn = create_new_compressed_matrix_node()
         mult_cmn.addr = (1, 1, 1, 1)
         mult_cmn.rank = 1
         mult_cmn.U_matrix = cmn1.U_matrix * cmn2.U_matrix
-        if isnothing(mult_cmn.U_matrix) 
-            # println("?") 
-        end 
 
     elseif cmn1.rank == 0 || cmn2.rank == 0
-        # println("B")
         mult_cmn = create_new_compressed_matrix_node()
         mult_cmn.rank = 0
         mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
 
     elseif is_compressed(cmn1) && is_compressed(cmn2)
-        # println("C")
         mult_cmn = create_new_compressed_matrix_node()
         V1_tr_matrix = cmn1.V_tr_matrix
         U_dash = nothing
@@ -269,48 +280,30 @@ function *(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
             U_dash = cmn1.U_matrix * cmn2.U_matrix
         end
         mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
-        # println(isnothing(U_dash))
         mult_cmn.U_matrix = U_dash
         mult_cmn.V_tr_matrix = cmn2.V_tr_matrix   
         mult_cmn.rank = size(mult_cmn.U_matrix, 2)
 
     elseif !is_compressed(cmn1) && !is_compressed(cmn2)
-        # println("D")
         mult_cmn = create_new_compressed_matrix_node()
         mult_cmn.left_upper_child = cmn1.left_upper_child * cmn2.left_upper_child + cmn1.right_upper_child * cmn2.left_lower_child
         mult_cmn.right_upper_child = cmn1.left_upper_child * cmn2.right_upper_child + cmn1.right_upper_child * cmn2.right_lower_child
         mult_cmn.left_lower_child = cmn1.left_lower_child * cmn2.left_upper_child + cmn1.right_lower_child * cmn2.left_lower_child
         mult_cmn.right_lower_child = cmn1.left_lower_child * cmn2.right_upper_child + cmn1.right_lower_child * cmn2.right_lower_child
-        # if isnothing(mult_cmn.left_upper_child) && isnothing(mult_cmn.left_lower_child) && isnothing(mult_cmn.right_upper_child) && isnothing(mult_cmn.right_lower_child)
-        #     # println("!")
-        # end
         mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
         
     elseif is_compressed(cmn1) && !is_compressed(cmn2)
-        # println("E")
         mult_cmn = create_new_compressed_matrix_node()
         cmn1_left_upper, cmn1_left_lower, cmn1_right_upper, cmn1_right_lower = break_up_compressed_cmn(cmn1)
-        # change_addr_to_mock(cmn1_left_upper)
-        # change_addr_to_mock(cmn1_left_lower)
-        # change_addr_to_mock(cmn1_right_upper)
-        # change_addr_to_mock(cmn1_right_lower)
         mult_cmn.left_upper_child = cmn1_left_upper * cmn2.left_upper_child + cmn1_right_upper * cmn2.left_lower_child
         mult_cmn.right_upper_child = cmn1_left_upper * cmn2.right_upper_child + cmn1_right_upper * cmn2.right_lower_child
         mult_cmn.left_lower_child = cmn1_left_lower * cmn2.left_upper_child + cmn1_right_lower * cmn2.left_lower_child
         mult_cmn.right_lower_child = cmn1_left_lower * cmn2.right_upper_child + cmn1_right_lower * cmn2.right_lower_child
-        # if isnothing(mult_cmn.left_upper_child) && isnothing(mult_cmn.left_lower_child) && isnothing(mult_cmn.right_upper_child) && isnothing(mult_cmn.right_lower_child)
-        #     # println("!")
-        # end
         mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
 
     elseif !is_compressed(cmn1) && is_compressed(cmn2)
-        # println("F")
         mult_cmn = create_new_compressed_matrix_node()
         cmn2_left_upper, cmn2_left_lower, cmn2_right_upper, cmn2_right_lower = break_up_compressed_cmn(cmn2)
-        # change_addr_to_mock(cmn1_left_upper)
-        # change_addr_to_mock(cmn1_left_lower)
-        # change_addr_to_mock(cmn1_right_upper)
-        # change_addr_to_mock(cmn1_right_lower)
         mult_cmn.left_upper_child = cmn1.left_upper_child * cmn2_left_upper + cmn1.right_upper_child * cmn2_left_lower
         mult_cmn.right_upper_child = cmn1.left_upper_child * cmn2_right_upper + cmn1.right_upper_child * cmn2_right_lower
         mult_cmn.left_lower_child = cmn1.left_lower_child * cmn2_left_upper + cmn1.right_lower_child * cmn2_left_lower

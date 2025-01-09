@@ -5,7 +5,7 @@ export CompressedMatrixNode, create_new_compressed_matrix_node, CompressedMatrix
 import Base: +, *, size, iterate
 
 mutable struct CompressedMatrixNode
-    rank
+    rank::Union{Int64, Nothing}
     addr::Union{Tuple{Int64, Int64, Int64, Int64}, Nothing} 
 
     left_upper_child::Union{CompressedMatrixNode, Nothing}
@@ -77,39 +77,54 @@ function break_up_compressed_cmn(cmn::CompressedMatrixNode)
     left_upper_child = create_new_compressed_matrix_node()
     left_upper_child.addr = (r_min, r_mid, c_min, c_mid)
     left_upper_child.rank = gamma
-    # println(isnothing(cmn.U_matrix), " ", isnothing(cmn.V_tr_matrix))
     left_upper_child.U_matrix = cmn.U_matrix[1:U_border , 1:end]
     if !isnothing(cmn.V_tr_matrix)
-        left_upper_child.V_tr_matrix = cmn.V_tr_matrix[1:end , 1:V_border]
+        if r_min == r_mid && c_min == c_mid 
+            left_upper_child.U_matrix *= cmn.V_tr_matrix[1:end , 1:V_border]
+        else
+            left_upper_child.V_tr_matrix = cmn.V_tr_matrix[1:end , 1:V_border]
+        end
     end
 
-    if U_border+1 < U_end 
+    if U_border < U_end 
         left_lower_child = create_new_compressed_matrix_node()
         left_lower_child.addr = (r_mid+1, r_max, c_min, c_mid)
         left_lower_child.rank = gamma 
         left_lower_child.U_matrix = cmn.U_matrix[U_border+1:end , 1:end]
         if !isnothing(cmn.V_tr_matrix)
-            left_lower_child.V_tr_matrix = cmn.V_tr_matrix[1:end , 1:V_border]
+            if r_mid+1 == r_max && c_min == c_max
+                left_lower_child.U_matrix *= cmn.V_tr_matrix[1:end , 1:V_border]
+            else
+                left_lower_child.V_tr_matrix = cmn.V_tr_matrix[1:end , 1:V_border]
+            end
         end
 
-        if V_border+1 < V_end
+        if V_border < V_end
             right_lower_child = create_new_compressed_matrix_node()
             right_lower_child.addr = (r_mid+1, r_max, c_mid+1, c_max)
             right_lower_child.rank = gamma 
             right_lower_child.U_matrix = cmn.U_matrix[U_border+1:end , 1:end]
             if !isnothing(cmn.V_tr_matrix)
-                right_lower_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
+                if r_mid+1 == r_max && c_mid+1 == c_max
+                    right_lower_child.U_matrix *= cmn.V_tr_matrix[1:end , V_border+1:end]
+                else
+                    right_lower_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
+                end
             end
         end
     end
     
-    if V_border+1 < V_end
+    if V_border < V_end
         right_upper_child = create_new_compressed_matrix_node()
         right_upper_child.addr = (r_min, r_mid, c_mid+1, c_max)
         right_upper_child.rank = gamma 
         right_upper_child.U_matrix = cmn.U_matrix[1:U_border , 1:end]
         if !isnothing(cmn.V_tr_matrix)
-            right_upper_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
+            if r_min == r_mid && c_mid+1 == c_max
+                right_upper_child.U_matrix *= cmn.V_tr_matrix[1:end , V_border+1:end]
+            else
+                right_upper_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
+            end
         end
     end
 

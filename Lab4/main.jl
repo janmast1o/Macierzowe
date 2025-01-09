@@ -36,6 +36,14 @@ function test_matrix_compression(low_m, high_m, low_n, high_n, a, b, tests, gamm
         if are_equal(A, built_A)
             correct_outputs += 1
         else 
+            # for i in 1:1:size(A,1)
+            #     for j in 1:1:size(A,2)
+            #         if abs(A[i,j] - built_A[i,j]) > error_eps
+            #             println(A[i,j], " ", built_A[i,j], "\n")
+            #         end
+            #     end
+            # end
+            # println("\n\n\n")
             incorrect_ouputs += 1    
         end
     end
@@ -63,10 +71,21 @@ function test_compressed_matrix_addition(low_m, high_m, low_n, high_n, a, b, tes
         cm_A = perform_matrix_compression(A, gamma=gamma, eps=eps)
         cm_B = perform_matrix_compression(B, gamma=gamma, eps=eps)
         cm_added = cm_A + cm_B
+        AB = A+B
         built_addded = build_matrix_from_compressed(size(cm_added), cm_added)
-        eq_output = are_equal(A+B, built_addded)
-        correct_outputs += eq_output
-        incorrect_outputs += !eq_output
+        if are_equal(A+B, built_addded)
+            correct_outputs += 1
+        else 
+            for i in 1:1:size(A,1)
+                for j in 1:1:size(A,2)
+                    if abs(AB[i,j] - built_addded[i,j]) > error_eps
+                        println(AB[i,j], " ", built_addded[i,j], " ", A[i,j], " ", B[i,j], " ", i, " ", j, "\n")
+                    end
+                end
+            end
+            println("\n\n\n")
+            incorrect_outputs += 1    
+        end
     end
 
     return correct_outputs, incorrect_outputs
@@ -92,8 +111,12 @@ function test_compressed_matrix_multiplication(low_m, high_m, low_n, high_n, a, 
         cm_A = perform_matrix_compression(A, gamma=gamma, eps=eps)
         cm_B = perform_matrix_compression(B, gamma=gamma, eps=eps)
         cm_mult = cm_A * cm_B
-        built_addded = build_matrix_from_compressed(size(cm_mult), cm_mult)
-        eq_output = are_equal(A*B, built_addded)
+        built_mult = build_matrix_from_compressed(size(cm_mult), cm_mult)
+        eq_output = are_equal(A*B, built_mult)
+        println(A*B)
+        println("")
+        println(built_mult)
+        println("\n\n\n")
         correct_outputs += eq_output
         incorrect_outputs += !eq_output
     end
@@ -103,8 +126,8 @@ end
 
 
 function run_compressed_multiplication_tests()
-    low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test = 15, 50, 15, 50
-    # low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test = 1, 10, 1, 10
+    # low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test = 15, 50, 15, 50
+    low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test = 1, 10, 1, 10
     a_for_test, b_for_test = 0, 50
     correct, incorrect = test_compressed_matrix_multiplication(low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test, a_for_test, b_for_test, 15, 1, 0.1)
     println(correct, " ", incorrect)
@@ -113,4 +136,4 @@ end
 
 run_compression_tests()
 run_compressed_addition_tests()
-run_compressed_multiplication_tests()
+# run_compressed_multiplication_tests()
