@@ -2,7 +2,7 @@ include("create_compressed_matrix.jl")
 using .CompressedMatrixCreationModule
 
 
-error_eps = 1e-4
+error_eps = 1e-2
 
 
 function generate_random_matrix(m, n, a, b)

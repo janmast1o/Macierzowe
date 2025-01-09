@@ -27,16 +27,19 @@ end
 
 function size(cmn::CompressedMatrixNode, dim::Int64)
     if dim == 1
-        return cmn.addr[2]-cmn.addr[1]
+        return cmn.addr[2]-cmn.addr[1]+1
     elseif dim == 2
-        return cmn.addr[4]-cmn.addr[3]
+        return cmn.addr[4]-cmn.addr[3]+1
     else 
         throw(ArgumentError("Compressed matrix only has two dimansions")) 
     end 
 end
 
 function is_compressed(cmn::CompressedMatrixNode)
-    return isnothing(cmn.left_upper_child) && isnothing(cmn.left_lower_child) && isnothing(cmn.right_upper_child) && isnothing(cmn.right_lower_child)
+    # if isnothing(cmn.left_upper_child) && isnothing(cmn.left_lower_child) && isnothing(cmn.right_upper_child) && isnothing(cmn.right_lower_child) && isnothing(cmn.U_matrix) && cmn.rank != 0
+    #     println("!")
+    # end
+    return isnothing(cmn.left_upper_child) && isnothing(cmn.left_lower_child) && isnothing(cmn.right_upper_child) && isnothing(cmn.right_lower_child) && !isnothing(cmn.U_matrix)
 end
 
 
@@ -148,7 +151,7 @@ function size(cmn::CompressedMatrix, dim::Int64)
 end
 
 
-function fix_addrs(cm::CompressedMatrixNode)
+function fix_addrs(cm::CompressedMatrix)
     fix_addrs(cm.head, 1, size(cm, 1), 1, size(cm, 2))
 end
 
