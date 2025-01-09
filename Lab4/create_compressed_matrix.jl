@@ -1,6 +1,6 @@
 module CompressedMatrixCreationModule
 
-import Base: +, size, iterate
+import Base: +, *, size, iterate
 
 error_eps = 1e-4
 
@@ -130,20 +130,15 @@ end
 
 
 function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMatrixNode, Nothing})::Union{CompressedMatrixNode, Nothing}
-    # if !isnothing(cmn1) && !isnothing(cmn2)
-    #     println(size(cmn1), size(cmn2))
-    #     println(cmn1.addr, cmn2.addr)
-    # end
-
     if isnothing(cmn1) || isnothing(cmn2)
         return nothing     
     elseif !all(size(cmn1) .== size(cmn2))
+        println(size(cmn1), " ", size(cmn2))
         throw(ArgumentError("Cannot add matrix nodes of different sizes")) 
     elseif !all(cmn1.addr .== cmn2.addr)
         throw(ArgumentError("Incompatible matrix nodes in terms of addr"))
     end
 
-    # println(isnothing(cmn1), " ", isnothing(cmn2))
     add_cmn::Union{CompressedMatrixNode, Nothing} = nothing
     
     if cmn1.addr[1] == cmn1.addr[2] && cmn1.addr[3] == cmn1.addr[4]
@@ -160,9 +155,15 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
     elseif is_compressed(cmn1) && is_compressed(cmn2) 
         u_wave = [cmn1.U_matrix cmn2.U_matrix]
         v_wave = [cmn1.V_tr_matrix ; cmn2.V_tr_matrix]
-        gamma = cmn1.rank
+        # if cmn1.rank != cmn2.rank
+        #     println(cmn1.rank, " ", cmn2.rank)
+        # end
+        # gamma = cmn1.rank 
+        # if !isnothing(cmn1.rank) && !isnothing(cmn2.rank)
+        gamma = max(cmn1.rank, cmn2.rank)
+        # end
         u_dash, d_dash, v_tr_dash = trunc_svd(u_wave*v_wave, gamma=gamma)
-        sigmas = diag(D)
+        sigmas = diag(d_dash)
         add_cmn = create_new_compressed_matrix_node()
         add_cmn.rank = gamma
         add_cmn.addr = cmn1.addr
@@ -205,12 +206,95 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
 end
 
 
+function *(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMatrixNode, Nothing})::Union{CompressedMatrixNode, Nothing}
+    if isnothing(cmn1) || isnothing(cmn2)
+        return nothing
+    elseif size(cmn1, 2) != size(cmn2, 1)
+        throw(ArgumentError("Cannot multiply compressed matrix nodes of incompatible shapes"))
+    end
+
+    mult_cmn::Union{CompressedMatrixNode, Nothing} = nothing
+    
+    if all(size(cmn1) .== (1,1)) && all(size(cmn2) .== (1,1))
+        mult_cmn = create_new_compressed_matrix_node()
+        mult_cmn.addr = (1, 1, 1, 1)
+        mult_cmn.rank = 1
+        mult_cmn.U_matrix = cmn1.U_matrix * cmn2.U_matrix
+    
+    elseif cmn1.rank == 0 || cmn2.rank == 0
+        mult_cmn = create_new_compressed_matrix_node()
+        mult_cmn.rank = 0
+        mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
+
+    elseif is_compressed(cmn1) && is_compressed(cmn2)
+        mult_cmn = create_new_compressed_matrix_node()
+        V1_tr_matrix = cmn1.V_tr_matrix
+        if !isnothing(V1_tr_matrix)
+            U_dash = cmn1.U_matrix * V1_tr_matrix * cmn2.U_matrix 
+        else
+            U_dash = cmn1.U_matrix * cmn2.U_matrix
+        end
+        mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
+        mult_cmn.U_matrix = U_dash
+        mult_cmn.V_tr_matrix = cmn2.V_tr_matrix   
+        mult_cmn.rank = size(mult_cmn.U_matrix, 2)
+
+    elseif !is_compressed(cmn1) && !is_compressed(cmn2)
+        mult_cmn = create_new_compressed_matrix_node()
+        mult_cmn.left_upper_child = cmn1.left_upper_child * cmn2.left_upper_child + cmn1.right_upper_child * cmn2.left_lower_child
+        mult_cmn.right_upper_child = cmn1.left_upper_child * cmn2.right_upper_child + cmn1.right_upper_child * cmn2.right_lower_child
+        mult_cmn.left_lower_child = cmn1.left_lower_child * cmn2.left_upper_child + cmn1.right_lower_child * cmn2.left_lower_child
+        mult_cmn.right_lower_child = cmn1.left_lower_child * cmn2.right_upper_child + cmn1.right_lower_child * cmn2.right_lower_child
+        mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
+        
+    elseif is_compressed(cmn1) && !is_compressed(cmn2)
+        mult_cmn = create_new_compressed_matrix_node()
+        cmn1_left_upper, cmn1_left_lower, cmn1_right_upper, cmn1_right_lower = break_up_compressed_cmn(cmn1)
+        # change_addr_to_mock(cmn1_left_upper)
+        # change_addr_to_mock(cmn1_left_lower)
+        # change_addr_to_mock(cmn1_right_upper)
+        # change_addr_to_mock(cmn1_right_lower)
+        mult_cmn.left_upper_child = cmn1_left_upper * cmn2.left_upper_child + cmn1_right_upper * cmn2.left_lower_child
+        mult_cmn.right_upper_child = cmn1_left_upper * cmn2.right_upper_child + cmn1_right_upper * cmn2.right_lower_child
+        mult_cmn.left_lower_child = cmn1_left_lower * cmn2.left_upper_child + cmn1_right_lower * cmn2.left_lower_child
+        mult_cmn.right_lower_child = cmn1_left_lower * cmn2.right_upper_child + cmn1_right_lower * cmn2.right_lower_child
+        mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
+
+    elseif !is_compressed(cmn1) && is_compressed(cmn2)
+        mult_cmn = create_new_compressed_matrix_node()
+        cmn2_left_upper, cmn2_left_lower, cmn2_right_upper, cmn2_right_lower = break_up_compressed_cmn(cmn2)
+        # change_addr_to_mock(cmn1_left_upper)
+        # change_addr_to_mock(cmn1_left_lower)
+        # change_addr_to_mock(cmn1_right_upper)
+        # change_addr_to_mock(cmn1_right_lower)
+        mult_cmn.left_upper_child = cmn1.left_upper_child * cmn2_left_upper + cmn1.right_upper_child * cmn2_left_lower
+        mult_cmn.right_upper_child = cmn1.left_upper_child * cmn2_right_upper + cmn1.right_upper_child * cmn2_right_lower
+        mult_cmn.left_lower_child = cmn1.left_lower_child * cmn2_left_upper + cmn1.right_lower_child * cmn2_left_lower
+        mult_cmn.right_lower_child = cmn1.left_lower_child * cmn2_right_upper + cmn1.right_lower_child * cmn2_right_lower
+        mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
+
+    end
+
+    return mult_cmn
+
+end
+
+
 function +(cm1::CompressedMatrix, cm2::CompressedMatrix)
     if !all(cm1.size .== cm2.size) 
         throw(ArgumentError("Cannot add matrixes of different sizes"))
     end
-    # println("A")
     return CompressedMatrix(cm1.head + cm2.head, cm1.size)
+end
+
+
+function *(cm1::CompressedMatrix, cm2::CompressedMatrix)
+    if cm1.size[2] != cm2.size[1]
+        throw(ArgumentError("Cannot multiply matrixes of incompatible shapes"))
+    end
+    mult_cm = CompressedMatrix(cm1.head * cm2.head,  (cm1.size[1], cm2.size[2]))
+    fix_addrs(mult_cm)
+    return mult_cm
 end
 
 

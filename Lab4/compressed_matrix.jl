@@ -1,8 +1,8 @@
 module CompressedMatrixModule
 
-export CompressedMatrixNode, create_new_compressed_matrix_node, CompressedMatrix, is_compressed, break_up_compressed_cmn
+export CompressedMatrixNode, create_new_compressed_matrix_node, CompressedMatrix, is_compressed, break_up_compressed_cmn, change_addr_to_mock, fix_addrs
 
-import Base: +, size, iterate
+import Base: +, *, size, iterate
 
 mutable struct CompressedMatrixNode
     rank
@@ -25,8 +25,28 @@ function size(cmn::CompressedMatrixNode)
 end
 
 
+function size(cmn::CompressedMatrixNode, dim::Int64)
+    if dim == 1
+        return cmn.addr[2]-cmn.addr[1]
+    elseif dim == 2
+        return cmn.addr[4]-cmn.addr[3]
+    else 
+        throw(ArgumentError("Compressed matrix only has two dimansions")) 
+    end 
+end
+
 function is_compressed(cmn::CompressedMatrixNode)
     return isnothing(cmn.left_upper_child) && isnothing(cmn.left_lower_child) && isnothing(cmn.right_upper_child) && isnothing(cmn.right_lower_child)
+end
+
+
+function change_addr_to_mock(cmn::Union{CompressedMatrixNode, Nothing})
+    if isnothing(cmn1) 
+        return
+    end
+
+    new_r_max, new_c_max = size(cmn)
+    cmn.addr = (1, new_r_max, 1, new_c_max)
 end
 
 
@@ -54,22 +74,29 @@ function break_up_compressed_cmn(cmn::CompressedMatrixNode)
     left_upper_child = create_new_compressed_matrix_node()
     left_upper_child.addr = (r_min, r_mid, c_min, c_mid)
     left_upper_child.rank = gamma
+    # println(isnothing(cmn.U_matrix), " ", isnothing(cmn.V_tr_matrix))
     left_upper_child.U_matrix = cmn.U_matrix[1:U_border , 1:end]
-    left_upper_child.V_tr_matrix = cmn.V_tr_matrix[1:end , 1:V_border]
+    if !isnothing(cmn.V_tr_matrix)
+        left_upper_child.V_tr_matrix = cmn.V_tr_matrix[1:end , 1:V_border]
+    end
 
     if U_border+1 < U_end 
         left_lower_child = create_new_compressed_matrix_node()
         left_lower_child.addr = (r_mid+1, r_max, c_min, c_mid)
         left_lower_child.rank = gamma 
         left_lower_child.U_matrix = cmn.U_matrix[U_border+1:end , 1:end]
-        left_lower_child.V_matrix = cmn.V_tr_matrix[1:end , 1:V_border]
+        if !isnothing(cmn.V_tr_matrix)
+            left_lower_child.V_tr_matrix = cmn.V_tr_matrix[1:end , 1:V_border]
+        end
 
         if V_border+1 < V_end
             right_lower_child = create_new_compressed_matrix_node()
             right_lower_child.addr = (r_mid+1, r_max, c_mid+1, c_max)
             right_lower_child.rank = gamma 
             right_lower_child.U_matrix = cmn.U_matrix[U_border+1:end , 1:end]
-            right_lower_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
+            if !isnothing(cmn.V_tr_matrix)
+                right_lower_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
+            end
         end
     end
     
@@ -78,10 +105,29 @@ function break_up_compressed_cmn(cmn::CompressedMatrixNode)
         right_upper_child.addr = (r_min, r_mid, c_mid+1, c_max)
         right_upper_child.rank = gamma 
         right_upper_child.U_matrix = cmn.U_matrix[1:U_border , 1:end]
-        right_upper_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
+        if !isnothing(cmn.V_tr_matrix)
+            right_upper_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
+        end
     end
 
     return left_upper_child, left_lower_child, right_upper_child, right_lower_child
+end
+
+
+function fix_addrs(cmn::Union{CompressedMatrixNode, Nothing}, r_min::Int64, r_max::Int64, c_min::Int64, c_max::Int64)
+    if isnothing(cmn)
+        return 
+    end
+
+    cmn.addr = (r_min, r_max, c_min, c_max)
+
+    r_mid = div(r_min+r_max, 2)
+    c_mid = div(c_min+c_max, 2)
+    fix_addrs(cmn.left_upper_child, r_min, r_mid, c_min, c_mid)
+    fix_addrs(cmn.left_lower_child, r_mid+1, r_max, c_min, c_mid)
+    fix_addrs(cmn.right_upper_child, r_min, r_mid, c_mid+1, c_max)
+    fix_addrs(cmn.right_lower_child, r_mid+1, r_max, c_mid+1, c_max)
+
 end
 
 
@@ -91,8 +137,20 @@ mutable struct CompressedMatrix
 
 end
 
+
 function size(cmn::CompressedMatrix)
     return cmn.size
 end
+
+
+function size(cmn::CompressedMatrix, dim::Int64)
+    return cmn.size[dim]
+end
+
+
+function fix_addrs(cm::CompressedMatrixNode)
+    fix_addrs(cm.head, 1, size(cm, 1), 1, size(cm, 2))
+end
+
 
 end
