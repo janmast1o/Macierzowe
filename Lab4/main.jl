@@ -76,14 +76,14 @@ function test_compressed_matrix_addition(low_m, high_m, low_n, high_n, a, b, tes
         if are_equal(A+B, built_addded)
             correct_outputs += 1
         else 
-            for i in 1:1:size(A,1)
-                for j in 1:1:size(A,2)
-                    if abs(AB[i,j] - built_addded[i,j]) > error_eps
-                        println(AB[i,j], " ", built_addded[i,j], " ", A[i,j], " ", B[i,j], " ", i, " ", j, "\n")
-                    end
-                end
-            end
-            println("\n\n\n")
+            # for i in 1:1:size(A,1)
+            #     for j in 1:1:size(A,2)
+            #         if abs(AB[i,j] - built_addded[i,j]) > error_eps
+            #             println(AB[i,j], " ", built_addded[i,j], " ", A[i,j], " ", B[i,j], " ", i, " ", j, "\n")
+            #         end
+            #     end
+            # end
+            # println("\n\n\n")
             incorrect_outputs += 1    
         end
     end
@@ -116,14 +116,14 @@ function test_compressed_matrix_multiplication(low_m, high_m, low_n, high_n, a, 
         if are_equal(A*B, built_mult)
             correct_outputs += 1
         else 
-            for i in 1:1:size(AB,1)
-                for j in 1:1:size(AB,2)
-                    if abs(AB[i,j] - built_mult[i,j]) > error_eps
-                        println(AB[i,j], " ", built_mult[i,j], " ", i, " ", j, "\n")
-                    end
-                end
-            end
-            println("\n\n\n")
+            # for i in 1:1:size(AB,1)
+            #     for j in 1:1:size(AB,2)
+            #         if abs(AB[i,j] - built_mult[i,j]) > error_eps
+            #             println(AB[i,j], " ", built_mult[i,j], " ", i, " ", j, "\n")
+            #         end
+            #     end
+            # end
+            # println("\n\n\n")
             incorrect_outputs += 1    
         end
     end
@@ -143,4 +143,4 @@ end
 
 run_compression_tests()
 run_compressed_addition_tests()
-# run_compressed_multiplication_tests()
+run_compressed_multiplication_tests()

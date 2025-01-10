@@ -143,46 +143,25 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
     end
 
     add_cmn::Union{CompressedMatrixNode, Nothing} = nothing
-    character = "NA"
 
     if cmn1.addr[1] == cmn1.addr[2] && cmn1.addr[3] == cmn1.addr[4]
-        character = "A"
         add_cmn = create_new_compressed_matrix_node()
-        if !isnothing(cmn1.V_tr_matrix)
-            if !isnothing(cmn2.V_tr_matrix)
-                add_cmn.U_matrix = cmn1.U_matrix * cmn1.V_tr_matrix + cmn2.U_matrix * cmn2.V_tr_matrix
-            else 
-                add_cmn.U_matrix = cmn1.U_matrix * cmn1.V_tr_matrix + cmn2.U_matrix
-            end
-        elseif !isnothing(cmn2.V_tr_matrix)
-            add_cmn.U_matrix = cmn1.U_matrix + cmn2.U_matrix * cmn2.V_tr_matrix
-        else
-            add_cmn.U_matrix = cmn1.U_matrix + cmn2.U_matrix
-        end
-        # if !isnothing(cmn1.V_tr_matrix) || !isnothing(cmn2.V_tr_matrix)
-        #     println(cmn1.U_matrix, " ", cmn1.V_tr_matrix)
-        #     println(cmn2.U_matrix, " ", cmn2.V_tr_matrix)
-        #     println("!")
-        # end
+        add_cmn.U_matrix = cmn1.U_matrix + cmn2.U_matrix
         add_cmn.rank = cmn1.rank
         add_cmn.addr = cmn1.addr
     
     elseif cmn1.rank == 0 && cmn2.rank == 0
-        character = "B"
         add_cmn = create_new_compressed_matrix_node()
         add_cmn.rank = 0
         add_cmn.addr = cmn1.addr
 
     elseif cmn1.rank == 0
-        character = "C"
         add_cmn = deepcopy(cmn2)
        
     elseif cmn2.rank == 0
-        character = "D"
         add_cmn = deepcopy(cmn1)    
     
     elseif is_compressed(cmn1) && is_compressed(cmn2) 
-        character = "E"
         u_wave = [cmn1.U_matrix cmn2.U_matrix]
         v_wave = [cmn1.V_tr_matrix ; cmn2.V_tr_matrix]
         gamma = max(cmn1.rank, cmn2.rank)
@@ -196,7 +175,6 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         add_cmn.V_tr_matrix = d_dash*v_tr_dash
     
     elseif !is_compressed(cmn1) && !is_compressed(cmn2)
-        character = "F"
         add_cmn = create_new_compressed_matrix_node()
         add_cmn.rank = cmn1.rank
         add_cmn.addr = cmn1.addr
@@ -206,7 +184,6 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         add_cmn.right_lower_child = cmn1.right_lower_child + cmn2.right_lower_child
 
     elseif is_compressed(cmn1) && !is_compressed(cmn2)
-        character = "G"
         cmn1_left_upper, cmn1_left_lower, cmn1_right_upper, cmn1_right_lower = break_up_compressed_cmn(cmn1)
         add_cmn = create_new_compressed_matrix_node()
         add_cmn.rank = cmn1.rank 
@@ -217,7 +194,6 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         add_cmn.right_lower_child = cmn1_right_lower + cmn2.right_lower_child
 
     elseif !is_compressed(cmn1) && is_compressed(cmn2)
-        character = "H"
         cmn2_left_upper, cmn2_left_lower, cmn2_right_upper, cmn2_right_lower = break_up_compressed_cmn(cmn2)
         add_cmn = create_new_compressed_matrix_node()
         add_cmn.rank = cmn2.rank 

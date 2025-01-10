@@ -92,7 +92,7 @@ function break_up_compressed_cmn(cmn::CompressedMatrixNode)
         left_lower_child.rank = gamma 
         left_lower_child.U_matrix = cmn.U_matrix[U_border+1:end , 1:end]
         if !isnothing(cmn.V_tr_matrix)
-            if r_mid+1 == r_max && c_min == c_max
+            if r_mid+1 == r_max && c_min == c_mid
                 left_lower_child.U_matrix *= cmn.V_tr_matrix[1:end , 1:V_border]
             else
                 left_lower_child.V_tr_matrix = cmn.V_tr_matrix[1:end , 1:V_border]
@@ -126,7 +126,9 @@ function break_up_compressed_cmn(cmn::CompressedMatrixNode)
                 right_upper_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
             end
         end
+
     end
+
 
     return left_upper_child, left_lower_child, right_upper_child, right_lower_child
 end
