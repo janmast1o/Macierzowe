@@ -111,14 +111,21 @@ function test_compressed_matrix_multiplication(low_m, high_m, low_n, high_n, a, 
         cm_A = perform_matrix_compression(A, gamma=gamma, eps=eps)
         cm_B = perform_matrix_compression(B, gamma=gamma, eps=eps)
         cm_mult = cm_A * cm_B
+        AB = A*B
         built_mult = build_matrix_from_compressed(size(cm_mult), cm_mult)
-        eq_output = are_equal(A*B, built_mult)
-        println(A*B)
-        println("")
-        println(built_mult)
-        println("\n\n\n")
-        correct_outputs += eq_output
-        incorrect_outputs += !eq_output
+        if are_equal(A*B, built_mult)
+            correct_outputs += 1
+        else 
+            for i in 1:1:size(AB,1)
+                for j in 1:1:size(AB,2)
+                    if abs(AB[i,j] - built_mult[i,j]) > error_eps
+                        println(AB[i,j], " ", built_mult[i,j], " ", i, " ", j, "\n")
+                    end
+                end
+            end
+            println("\n\n\n")
+            incorrect_outputs += 1    
+        end
     end
 
     return correct_outputs, incorrect_outputs
