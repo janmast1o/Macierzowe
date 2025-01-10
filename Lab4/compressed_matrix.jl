@@ -2,7 +2,7 @@ module CompressedMatrixModule
 
 export CompressedMatrixNode, create_new_compressed_matrix_node, CompressedMatrix, is_compressed, break_up_compressed_cmn, change_addr_to_mock, fix_addrs
 
-import Base: +, *, size, iterate
+import Base: +, *, -, size, iterate
 
 mutable struct CompressedMatrixNode
     rank::Union{Int64, Nothing}
@@ -39,7 +39,9 @@ function is_compressed(cmn::CompressedMatrixNode)
     # if isnothing(cmn.left_upper_child) && isnothing(cmn.left_lower_child) && isnothing(cmn.right_upper_child) && isnothing(cmn.right_lower_child) && isnothing(cmn.U_matrix) && cmn.rank != 0
     #     println("!")
     # end
-    return isnothing(cmn.left_upper_child) && isnothing(cmn.left_lower_child) && isnothing(cmn.right_upper_child) && isnothing(cmn.right_lower_child) && !isnothing(cmn.U_matrix)
+    return isnothing(cmn.left_upper_child) && isnothing(cmn.left_lower_child) && 
+           isnothing(cmn.right_upper_child) && isnothing(cmn.right_lower_child) && 
+           !isnothing(cmn.U_matrix)
 end
 
 
@@ -111,6 +113,7 @@ function break_up_compressed_cmn(cmn::CompressedMatrixNode)
                     right_lower_child.V_tr_matrix = cmn.V_tr_matrix[1:end , V_border+1:end]
                 end
             end
+
         end
     end
     
@@ -128,7 +131,6 @@ function break_up_compressed_cmn(cmn::CompressedMatrixNode)
         end
 
     end
-
 
     return left_upper_child, left_lower_child, right_upper_child, right_lower_child
 end

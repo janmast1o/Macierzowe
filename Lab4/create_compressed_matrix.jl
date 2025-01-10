@@ -1,6 +1,6 @@
 module CompressedMatrixCreationModule
 
-import Base: +, *, size, iterate
+import Base: +, *, -, size, iterate
 
 error_eps = 1e-4
 
@@ -138,8 +138,8 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         return deepcopy(cmn1)          
     elseif !all(size(cmn1) .== size(cmn2))
         throw(ArgumentError("Cannot add matrix nodes of different sizes")) 
-    elseif !all(cmn1.addr .== cmn2.addr)
-        throw(ArgumentError("Incompatible matrix nodes in terms of addr"))
+    # elseif !all(cmn1.addr .== cmn2.addr)
+    #     throw(ArgumentError("Incompatible matrix nodes in terms of addr"))
     end
 
     add_cmn::Union{CompressedMatrixNode, Nothing} = nothing
@@ -165,6 +165,9 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         u_wave = [cmn1.U_matrix cmn2.U_matrix]
         v_wave = [cmn1.V_tr_matrix ; cmn2.V_tr_matrix]
         gamma = max(cmn1.rank, cmn2.rank)
+        if isnothing(cmn1.U_matrix) || isnothing(cmn2.U_matrix) || isnothing(cmn1.V_tr_matrix) || isnothing(cmn2.V_tr_matrix)
+            println(cmn1.U_matrix, "\n\n", cmn2.U_matrix, "\n\n", cmn1.V_tr_matrix, "\n\n", cmn2.V_tr_matrix, "\n\n\n")
+        end
         u_dash, d_dash, v_tr_dash = trunc_svd(u_wave*v_wave, gamma=gamma)
         sigmas = diag(d_dash)
         add_cmn = create_new_compressed_matrix_node()
@@ -204,9 +207,6 @@ function +(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         add_cmn.right_lower_child = cmn1.right_lower_child + cmn2_right_lower
     end
 
-    if all(size(add_cmn) .== (1,1)) && !isnothing(add_cmn.V_tr_matrix)
-        println(character)
-    end
     return add_cmn
 
 end
@@ -257,7 +257,10 @@ function *(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         end
         mult_cmn.addr = (1, size(cmn1, 1), 1, size(cmn2, 2))
         mult_cmn.U_matrix = U_dash
-        mult_cmn.V_tr_matrix = cmn2.V_tr_matrix   
+        mult_cmn.V_tr_matrix = deepcopy(cmn2.V_tr_matrix)   
+        if sum(Int64.(size(mult_cmn.U_matrix)) .== (1,1)) == 1 && isnothing(mult_cmn.V_tr_matrix)
+            mult_cmn.V_tr_matrix = reshape([1], 1, 1)
+        end
         mult_cmn.rank = size(mult_cmn.U_matrix, 2)
 
     elseif !is_compressed(cmn1) && !is_compressed(cmn2)
@@ -295,6 +298,31 @@ function *(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
 end
 
 
+function *(cmn::Union{CompressedMatrixNode, Nothing}, alpha::Number)::Union{CompressedMatrixNode, Nothing}
+    if isnothing(cmn)
+        return nothing 
+    end
+
+    if cmn.rank == 0
+        return cmn 
+    elseif is_compressed(cmn)
+        cmn.U_matrix .*= alpha
+    else 
+        cmn.left_upper_child = cmn.left_upper_child*alpha 
+        cmn.left_lower_child = cmn.left_lower_child*alpha
+        cmn.right_upper_child = cmn.right_upper_child*alpha
+        cmn.right_lower_child = cmn.right_lower_child*alpha
+    end
+
+    return cmn
+end
+
+
+function *(alpha::Number, cmn::Union{CompressedMatrixNode, Nothing})::Union{CompressedMatrixNode, Nothing}
+    return cmn * alpha
+end
+
+
 function +(cm1::CompressedMatrix, cm2::CompressedMatrix)
     if !all(cm1.size .== cm2.size) 
         throw(ArgumentError("Cannot add matrixes of different sizes"))
@@ -310,6 +338,26 @@ function *(cm1::CompressedMatrix, cm2::CompressedMatrix)
     mult_cm = CompressedMatrix(cm1.head * cm2.head,  (cm1.size[1], cm2.size[2]))
     fix_addrs(mult_cm)
     return mult_cm
+end
+
+
+function *(cm::CompressedMatrix, alpha::Number)
+    return CompressedMatrix(alpha * deepcopy(cm.head), size(cm.head))
+end
+
+
+function *(alpha::Number, cm::CompressedMatrix)
+    return cm * alpha
+end
+
+
+function -(cm::CompressedMatrix)
+    return cm * -1
+end
+
+
+function -(cm1::CompressedMatrix, cm2::CompressedMatrix)
+    return cm1 + (-cm2)
 end
 
 
