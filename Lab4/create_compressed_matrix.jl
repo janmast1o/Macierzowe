@@ -251,7 +251,7 @@ function *(cmn1::Union{CompressedMatrixNode, Nothing}, cmn2::Union{CompressedMat
         V1_tr_matrix = cmn1.V_tr_matrix
         U_dash = nothing
         if !isnothing(V1_tr_matrix)
-            U_dash = cmn1.U_matrix * V1_tr_matrix * cmn2.U_matrix 
+            U_dash = cmn1.U_matrix * (V1_tr_matrix * cmn2.U_matrix)
         else
             U_dash = cmn1.U_matrix * cmn2.U_matrix
         end
