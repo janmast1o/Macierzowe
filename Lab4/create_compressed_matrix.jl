@@ -361,4 +361,64 @@ function -(cm1::CompressedMatrix, cm2::CompressedMatrix)
 end
 
 
+function *(v::CompressedMatrixNode, X::Vector{Float64})::Vector{Float64}
+    if isnothing(v.left_upper_child) && isnothing(v.right_upper_child) && isnothing(v.left_lower_child) && isnothing(v.right_lower_child)
+        if v.rank == 0
+            return zeros(size(X, 1))
+        end
+
+        if !isnothing(v.V_tr_matrix)
+            return v.U_matrix * (v.V_tr_matrix * X)
+        end
+
+        return v.U_matrix * X
+    end
+
+    rows = size(X, 1)
+    X1 = X[1:div(rows + 1, 2)]
+    X2 = X[div(rows + 1, 2)+1:rows]
+
+
+    if !isnothing(v.left_upper_child) && size(X1, 1) != 0 
+        Y11 = v.left_upper_child * X1
+    else
+        Y11 = zeros(1)
+    end
+
+    if !isnothing(v.right_upper_child) && size(X2, 1) != 0
+        Y12 = v.right_upper_child * X2
+    else
+        Y12 = zeros(1)
+    end
+
+    if !isnothing(v.left_lower_child) && size(X1, 1) != 0
+        Y21 = v.left_lower_child * X1
+    else
+        Y21 = zeros(1)
+    end
+
+    if !isnothing(v.right_lower_child) && size(X2, 1) != 0
+        Y22 = v.right_lower_child * X2
+    else
+        Y22 = zeros(1)
+    end
+
+    if size(v, 1) == 1
+        return Y11 + Y12
+    end
+
+    if size(v, 2) == 1
+        return vcat(Y11, Y21)
+    end
+
+    return vcat(Y11 + Y12, Y21 + Y22)
+end
+
+function *(v::CompressedMatrix, X::Vector{Float64})
+    if v.size[2] != size(X, 1)
+        throw(ArgumentError("Incompatible shapes, inner dimensions must agree"))
+    end
+    return v.head * X
+end
+
 end

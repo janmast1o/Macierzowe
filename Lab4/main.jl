@@ -15,6 +15,14 @@ function generate_random_matrix(m, n, a, b)
     return A
 end
 
+function generate_random_vector(m, a, b)
+    A = zeros(m)
+    for i in 1:1:m 
+        A[i] = a + (b-a)*rand()
+    end
+    return A
+end
+
 
 function are_equal(A, B)
     if !all(size(A) .== size(B))
@@ -221,8 +229,38 @@ function run_compressed_subtraction_tests()
 end
 
 
+function test_compressed_matrix_vector_multiplication(low_m, high_m, low_n, high_n, a, b, tests, gamma, eps)
+    correct_outputs = 0
+    incorrect_outputs = 0
+
+    for _ in 1:1:tests 
+        m, n = rand(low_m:1:high_m), rand(low_n:1:high_n)
+        A = generate_random_matrix(m, n, a, b)
+        X = generate_random_vector(n, a, b)
+        v = CompressedMatrixCreationModule.perform_matrix_compression(A, gamma=gamma, eps=eps)
+        Y = v * X
+        if are_equal(A*X, Y)
+            correct_outputs += 1
+        else
+            incorrect_outputs += 1    
+        end
+    end
+
+    return correct_outputs, incorrect_outputs
+end
+
+
+function run_compressed_matrix_vector_multiplication_tests()
+    low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test = 15, 50, 15, 50
+    a_for_test, b_for_test = 1, 50
+    correct, incorrect = test_compressed_matrix_vector_multiplication(low_m_for_test, high_m_for_test, low_n_for_test, high_n_for_test, a_for_test, b_for_test, 15, 1, 0.1)
+    println(correct, " ", incorrect)
+end
+
+
 run_compression_tests()
 run_compressed_addition_tests()
 run_compressed_multiplication_tests()
 run_compressed_scalar_multiplication_tests()
 run_compressed_subtraction_tests()
+run_compressed_matrix_vector_multiplication_tests()
