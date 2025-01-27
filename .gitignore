@@ -23,7 +23,14 @@ docs/site/
 # environment.
 Manifest.toml
 
+Lab2/.ipynbcheckpoints
+Lab2/*.png
+Lab2/*.csv
+
 Lab3/create_tree.jl 
 Lab3/create_tree.py
 Lab3/testing_svd.jl 
 Lab3/testing_svd.py
+Lab3/bitmaps/
+
+Lab4/cm*
