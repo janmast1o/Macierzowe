@@ -23,7 +23,7 @@ docs/site/
 # environment.
 Manifest.toml
 
-Lab2/.ipynbcheckpoints
+Lab2/.ipynb_checkpoints
 Lab2/*.png
 Lab2/*.csv
 
